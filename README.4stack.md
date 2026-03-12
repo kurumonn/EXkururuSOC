@@ -1,13 +1,12 @@
-# 4-Stack Demo Note
+# 4製品デモ概要
 
-This repository participates in the EXkururu 4-stack demo flow.
+このリポジトリは、EXkururu 4製品デモにおける SOC の役割を担当します。
 
-The public repository documents only the high-level path:
+公開リポジトリでは、高レベルな流れのみを記載しています。
 
-1. Product signals are normalized upstream
-2. XDR correlates them into incidents
-3. SOC reviews candidates and evaluations
-4. SOC issues controlled rollout decisions
+1. 上流製品のシグナルが正規化される
+2. XDR がそれらを相関してインシデント化する
+3. SOC が候補と評価をレビューする
+4. SOC が制御されたロールアウト判断を出す
 
-Environment-specific endpoints, source bootstrap sequences, and operational rollout payloads are kept out of
-the public repository.
+環境固有の接続先、source bootstrap 手順、運用ロールアウトの詳細は公開リポジトリ外で管理します。
