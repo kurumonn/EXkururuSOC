@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..app_context import get_storage, require_admin_token
+from ..app_context import get_read_storage, get_write_storage, require_admin_token
 
 router = APIRouter()
 
@@ -58,7 +58,7 @@ def list_candidates(
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
     return {
-        "items": get_storage().list_candidates(
+        "items": get_read_storage().list_candidates(
             status=status,
             source_product=source_product,
             candidate_type=candidate_type,
@@ -71,7 +71,7 @@ def list_candidates(
 @router.get("/api/v1/candidates/{candidate_id}")
 def get_candidate(candidate_id: str, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_read_storage()
     try:
         return st.get_candidate(candidate_id)
     except KeyError as exc:
@@ -81,7 +81,7 @@ def get_candidate(candidate_id: str, x_admin_token: str | None = Header(default=
 @router.post("/api/v1/candidates")
 def create_candidate(req: CandidateCreateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     candidate_id = f"cand-{secrets.token_hex(8)}"
     item = st.create_candidate(
         candidate_id=candidate_id,
@@ -120,7 +120,7 @@ def update_candidate(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_candidate(candidate_id)
         item = st.update_candidate(
@@ -155,7 +155,7 @@ def update_candidate_status(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_candidate(candidate_id)
         item = st.update_candidate_status(candidate_id, req.status, req.decision_note)
@@ -184,7 +184,7 @@ def apply_candidate_approval(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_candidate(candidate_id)
         item = st.apply_approval_action(candidate_id, action=req.action, decision_note=req.decision_note)

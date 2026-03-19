@@ -5,11 +5,18 @@ import json
 import secrets
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from ..app_context import get_storage, require_admin_token, require_source_or_admin_token
+from ..app_context import (
+    get_read_storage,
+    get_write_storage,
+    require_admin_token,
+    require_source_or_admin_token,
+    resolve_secret_ref,
+    verify_source_signature,
+)
 
 router = APIRouter()
 
@@ -43,13 +50,13 @@ def list_sources(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return {"items": get_storage().list_sources(product_name=product_name, status=status, limit=limit)}
+    return {"items": get_read_storage().list_sources(product_name=product_name, status=status, limit=limit)}
 
 
 @router.post("/api/v1/sources")
 def create_source(req: SourceCreateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     item = st.create_source(
         source_id=req.source_id,
         product_name=req.product_name,
@@ -75,7 +82,7 @@ def create_source(req: SourceCreateRequest, x_admin_token: str | None = Header(d
 @router.put("/api/v1/sources/{source_id}")
 def update_source(source_id: str, req: SourceUpdateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_source(source_id)
         item = st.update_source(
@@ -101,15 +108,35 @@ def update_source(source_id: str, req: SourceUpdateRequest, x_admin_token: str |
     return item
 
 
-@router.post("/api/v1/sources/{source_id}/heartbeat")
-def source_heartbeat(
+def _source_heartbeat_impl(
     source_id: str,
     req: SourceHeartbeatRequest,
-    x_admin_token: str | None = Header(default=None),
-    x_source_token: str | None = Header(default=None),
+    raw_body: bytes,
+    x_admin_token: str | None = None,
+    x_source_token: str | None = None,
+    x_source_timestamp: str | None = None,
+    x_source_signature: str | None = None,
+    x_source_nonce: str | None = None,
 ) -> dict[str, Any]:
     require_source_or_admin_token(source_id=source_id, x_admin_token=x_admin_token, x_source_token=x_source_token)
-    st = get_storage()
+    st = get_write_storage()
+    try:
+        source = st.get_source(source_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="source_not_found") from exc
+    auth_type = str(source.get("auth_type") or "token").strip().lower()
+    if auth_type == "signed_required":
+        source_secret = resolve_secret_ref(str(source.get("auth_secret_ref", "")))
+        if not source_secret:
+            raise HTTPException(status_code=401, detail="source_token_not_configured")
+        verify_source_signature(
+            source_id=source_id,
+            source_secret=source_secret,
+            raw_body=raw_body,
+            timestamp=x_source_timestamp,
+            signature=x_source_signature,
+            nonce=x_source_nonce,
+        )
     try:
         item = st.source_heartbeat(source_id, health_payload=req.health_payload, seen_at=req.seen_at)
     except KeyError as exc:
@@ -128,10 +155,34 @@ def source_heartbeat(
     return item
 
 
+@router.post("/api/v1/sources/{source_id}/heartbeat")
+async def source_heartbeat(
+    request: Request,
+    source_id: str,
+    req: SourceHeartbeatRequest,
+    x_admin_token: str | None = Header(default=None),
+    x_source_token: str | None = Header(default=None),
+    x_source_timestamp: str | None = Header(default=None),
+    x_source_signature: str | None = Header(default=None),
+    x_source_nonce: str | None = Header(default=None),
+) -> dict[str, Any]:
+    raw_body = await request.body()
+    return _source_heartbeat_impl(
+        source_id,
+        req,
+        raw_body,
+        x_admin_token=x_admin_token,
+        x_source_token=x_source_token,
+        x_source_timestamp=x_source_timestamp,
+        x_source_signature=x_source_signature,
+        x_source_nonce=x_source_nonce,
+    )
+
+
 @router.get("/api/v1/command-center")
 def command_center_summary(x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return get_storage().command_center_summary()
+    return get_read_storage().command_center_summary()
 
 
 @router.get("/secops/soc/dashboard/", response_class=HTMLResponse)
@@ -139,7 +190,7 @@ def soc_dashboard(token: str | None = Query(default=None), x_admin_token: str | 
     if token and not x_admin_token:
         x_admin_token = token
     require_admin_token(x_admin_token)
-    data = get_storage().command_center_summary()
+    data = get_read_storage().command_center_summary()
 
     def _e(value: Any) -> str:
         if isinstance(value, (dict, list)):

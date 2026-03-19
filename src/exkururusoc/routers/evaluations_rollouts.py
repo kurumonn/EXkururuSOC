@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..app_context import get_storage, require_admin_token
+from ..app_context import get_read_storage, get_write_storage, require_admin_token
 
 router = APIRouter()
 
@@ -37,7 +37,7 @@ class RolloutRollbackRequest(BaseModel):
 @router.post("/api/v1/evaluations")
 def create_evaluation(req: EvaluationCreateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         st.get_candidate(req.candidate_id)
     except KeyError as exc:
@@ -78,7 +78,7 @@ def list_evaluations(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    items = get_storage().list_evaluations(
+    items = get_read_storage().list_evaluations(
         candidate_id=candidate_id,
         evaluation_type=evaluation_type,
         verdict=verdict,
@@ -91,7 +91,7 @@ def list_evaluations(
 def get_evaluation(evaluation_id: str, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
     try:
-        return get_storage().get_evaluation(evaluation_id)
+        return get_read_storage().get_evaluation(evaluation_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="evaluation_not_found") from exc
 
@@ -99,7 +99,7 @@ def get_evaluation(evaluation_id: str, x_admin_token: str | None = Header(defaul
 @router.post("/api/v1/rollouts")
 def create_rollout(req: RolloutCreateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         candidate = st.get_candidate(req.candidate_id)
     except KeyError as exc:
@@ -142,14 +142,14 @@ def list_rollouts(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return {"items": get_storage().list_rollout_jobs(candidate_id=candidate_id, status=status, limit=limit)}
+    return {"items": get_read_storage().list_rollout_jobs(candidate_id=candidate_id, status=status, limit=limit)}
 
 
 @router.get("/api/v1/rollouts/{rollout_id}")
 def get_rollout(rollout_id: str, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
     try:
-        return get_storage().get_rollout_job(rollout_id)
+        return get_read_storage().get_rollout_job(rollout_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="rollout_not_found") from exc
 
@@ -157,7 +157,7 @@ def get_rollout(rollout_id: str, x_admin_token: str | None = Header(default=None
 @router.post("/api/v1/rollouts/{rollout_id}/advance")
 def advance_rollout(rollout_id: str, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_rollout_job(rollout_id)
         item = st.advance_rollout_stage(rollout_id)
@@ -188,7 +188,7 @@ def rollback_rollout(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_rollout_job(rollout_id)
         item = st.rollback_rollout(rollout_id, reason=req.reason)

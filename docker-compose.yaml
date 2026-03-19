@@ -1,0 +1,30 @@
+services:
+  soc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8820:8820"
+    environment:
+      SOC_API_ADMIN_TOKEN: ${SOC_API_ADMIN_TOKEN:-change-me}
+      SOC_ENV: ${SOC_ENV:-dev}
+      SOC_LOG_LEVEL: ${SOC_LOG_LEVEL:-INFO}
+      SOC_DB_PATH: /data/exkururu_soc.db
+      SOC_ALLOW_INSECURE_NO_AUTH: ${SOC_ALLOW_INSECURE_NO_AUTH:-0}
+      SOC_REPLAY_BACKEND: ${SOC_REPLAY_BACKEND:-redis}
+      SOC_REDIS_URL: redis://redis:6379/0
+      SOC_REPLAY_FALLBACK_TO_MEMORY: ${SOC_REPLAY_FALLBACK_TO_MEMORY:-1}
+    volumes:
+      - ./data:/data
+      - ./:/app
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    volumes:
+      - soc-redis:/data
+
+volumes:
+  soc-redis:

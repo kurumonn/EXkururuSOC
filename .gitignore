@@ -6,3 +6,4 @@ data/
 *.egg-info/
 src/*.egg-info/
 rust_feedback_bench/target/
+docs/*.json

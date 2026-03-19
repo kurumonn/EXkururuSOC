@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..app_context import get_storage, require_admin_token
+from ..app_context import get_read_storage, get_write_storage, require_admin_token
 
 router = APIRouter()
 
@@ -27,7 +27,7 @@ class DecisionModeUpdateRequest(BaseModel):
 
 
 def _ensure_policy_exists(policy_id: str) -> dict[str, Any]:
-    st = get_storage()
+    st = get_read_storage()
     try:
         return st.get_decision_policy(policy_id)
     except KeyError:
@@ -46,13 +46,13 @@ def _ensure_policy_exists(policy_id: str) -> dict[str, Any]:
 @router.get("/api/v1/policies")
 def list_policies(x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return {"items": get_storage().list_decision_policies()}
+    return {"items": get_read_storage().list_decision_policies()}
 
 
 @router.put("/api/v1/policies/{policy_id}")
 def upsert_policy(policy_id: str, req: PolicyUpsertRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     before = None
     try:
         before = st.get_decision_policy(policy_id)
@@ -98,7 +98,7 @@ def set_decision_mode(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     before = _ensure_policy_exists(policy_id)
     try:
         item = st.set_policy_mode(
@@ -141,7 +141,7 @@ def set_freeze(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     before = _ensure_policy_exists(policy_id)
     try:
         item = st.set_policy_mode(

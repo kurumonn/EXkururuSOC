@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..app_context import get_storage, require_admin_token
+from ..app_context import get_read_storage, get_write_storage, require_admin_token
 
 router = APIRouter()
 
@@ -64,13 +64,13 @@ class FeedbackAutoCandidateRequest(BaseModel):
 @router.get("/api/v1/safety/policy")
 def get_safety_policy(x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return get_storage().get_safety_guard_config()
+    return get_read_storage().get_safety_guard_config()
 
 
 @router.put("/api/v1/safety/policy")
 def set_safety_policy(req: SafetyGuardConfigRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     before = st.get_safety_guard_config()
     try:
         item = st.upsert_safety_guard_config(
@@ -100,13 +100,13 @@ def list_protected_assets(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return {"items": get_storage().list_protected_assets(asset_type=asset_type, limit=limit)}
+    return {"items": get_read_storage().list_protected_assets(asset_type=asset_type, limit=limit)}
 
 
 @router.post("/api/v1/safety/protected-assets")
 def create_protected_asset(req: ProtectedAssetCreateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     protected_id = f"pa-{secrets.token_hex(8)}"
     try:
         item = st.create_protected_asset(
@@ -134,7 +134,7 @@ def create_protected_asset(req: ProtectedAssetCreateRequest, x_admin_token: str 
 @router.delete("/api/v1/safety/protected-assets/{protected_id}")
 def delete_protected_asset(protected_id: str, x_admin_token: str | None = Header(default=None)) -> dict[str, str]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_protected_asset(protected_id)
         st.delete_protected_asset(protected_id)
@@ -162,14 +162,14 @@ def list_runbooks(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return {"items": get_storage().list_runbooks(incident_type=incident_type, enabled=enabled, limit=limit)}
+    return {"items": get_read_storage().list_runbooks(incident_type=incident_type, enabled=enabled, limit=limit)}
 
 
 @router.get("/api/v1/runbooks/{runbook_id}")
 def get_runbook(runbook_id: str, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
     try:
-        return get_storage().get_runbook(runbook_id)
+        return get_read_storage().get_runbook(runbook_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="runbook_not_found") from exc
 
@@ -177,7 +177,7 @@ def get_runbook(runbook_id: str, x_admin_token: str | None = Header(default=None
 @router.post("/api/v1/runbooks")
 def create_runbook(req: RunbookCreateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         item = st.create_runbook(
             runbook_id=req.runbook_id,
@@ -211,7 +211,7 @@ def update_runbook(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         before = st.get_runbook(runbook_id)
         item = st.update_runbook(
@@ -246,7 +246,7 @@ def execute_runbook(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         runbook = st.get_runbook(runbook_id)
     except KeyError as exc:
@@ -293,14 +293,14 @@ def list_runbook_executions(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return {"items": get_storage().list_runbook_executions(runbook_id=runbook_id, status=status, limit=limit)}
+    return {"items": get_read_storage().list_runbook_executions(runbook_id=runbook_id, status=status, limit=limit)}
 
 
 @router.get("/api/v1/runbook-executions/{execution_id}")
 def get_runbook_execution(execution_id: str, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
     try:
-        return get_storage().get_runbook_execution(execution_id)
+        return get_read_storage().get_runbook_execution(execution_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="runbook_execution_not_found") from exc
 
@@ -308,7 +308,7 @@ def get_runbook_execution(execution_id: str, x_admin_token: str | None = Header(
 @router.post("/api/v1/feedback")
 def create_feedback(req: FeedbackCreateRequest, x_admin_token: str | None = Header(default=None)) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     feedback_id = f"fb-{secrets.token_hex(8)}"
     item = st.create_feedback(
         feedback_id=feedback_id,
@@ -344,7 +344,7 @@ def list_feedback(
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
     return {
-        "items": get_storage().list_feedback(
+        "items": get_read_storage().list_feedback(
             source_product=source_product,
             feedback_type=feedback_type,
             created_by=created_by,
@@ -359,7 +359,7 @@ def generate_auto_candidates_from_feedback(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    st = get_storage()
+    st = get_write_storage()
     try:
         created = st.generate_candidates_from_feedback(min_hits=req.min_hits, created_by=req.created_by)
     except ValueError as exc:
@@ -385,4 +385,4 @@ def list_audit_logs(
     x_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     require_admin_token(x_admin_token)
-    return {"items": get_storage().list_audit_logs(action_type=action_type, limit=limit)}
+    return {"items": get_read_storage().list_audit_logs(action_type=action_type, limit=limit)}

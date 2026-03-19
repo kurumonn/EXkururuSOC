@@ -123,7 +123,7 @@ def main() -> None:
     parser.add_argument(
         "--out",
         type=Path,
-        default=ROOT / "docs" / "perf_soc_feedback_py_vs_rust.json",
+        default=Path("/tmp/perf_soc_feedback_py_vs_rust.json"),
     )
     args = parser.parse_args()
 
